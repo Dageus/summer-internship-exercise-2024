@@ -4,11 +4,16 @@ import com.premiumminds.internship.teknonymy.Person;
 import java.util.LinkedList;
 import java.util.Queue;
 import java.util.ArrayList;
+import java.util.Optional;
+import java.util.Comparator;
 
 class TeknonymyService implements ITeknonymyService {
 
   private static String[] _maleNames = { "father", "grandfather" };
   private static String[] _femaleNames = { "mother", "grandmother" };
+
+  private static Character MALE = 'M';
+  private static Character FEMALE = 'F';
 
   private static String _prefix = "great-";
   private static Integer _maxGen = -1;
@@ -17,10 +22,17 @@ class TeknonymyService implements ITeknonymyService {
   private ArrayList<Person> descendants;
 
   /*
-   * NOTE: opting for BFS because it's easier to segment processed nodes into the
-   * layer they're on
+   * NOTE: opting for BFS because it's easier to tell which processed nodes are in
+   * which generation
    */
   private Queue<Person> _queue = new LinkedList<Person>(); // this will store the nodes to be processed
+
+  private Optional<Person> getOldestDescendant(ArrayList<Person> descendants, Character sex) {
+    return descendants.stream()
+        .filter(descendant -> descendant.sex() == sex)
+        .min(Comparator.comparing(Person::dateOfBirth));
+
+  }
 
   /**
    * Method to get a Person Teknonymy Name
@@ -29,11 +41,6 @@ class TeknonymyService implements ITeknonymyService {
    * @return String which is the Teknonymy Name
    */
   public String getTeknonymy(Person person) {
-    // FIXME: will this even happen?
-    if (person == null) {
-      throw new IllegalArgumentException("Person cannot be null");
-    }
-
     // if person doesn't have children, the teknonymy is empty
     if (person.children() == null) {
       return "";
@@ -43,44 +50,55 @@ class TeknonymyService implements ITeknonymyService {
     _queue.add(person);
 
     while (!_queue.isEmpty()) {
-      Person currentPerson = _queue.poll();
-      Person[] children = currentPerson.children();
 
       descendants = new ArrayList<Person>();
 
-      if (children == null) {
-        continue;
-      }
+      for (int i = 0; i < _queue.size(); i++) {
 
-      for (Person child : children) {
-        _queue.add(child);
-        descendants.add(child);
+        Person currentPerson = _queue.poll();
+        Person[] children = currentPerson.children();
+
+        descendants.add(currentPerson);
+
+        if (children == null) {
+          continue;
+        }
+
+        for (Person child : children) {
+          _queue.add(child);
+        }
       }
       _maxGen++;
     }
 
-    // filter the male descendants
-    ArrayList<Person> maleDescendants = descendants.stream().filter(person -> person.sex() == 'M')
-        .toArray(Person[]::new);
-    // create a list of femalte descendants
-    ArrayList<Person> femaleDescendants = descendants.stream().filter(person -> person.sex() == 'F')
-        .toArray(Person[]::new);
+    // filter the male descendants and get the oldest one
+    Optional<Person> oldestDescendant = null;
+    Person descendant = null;
 
-    // get the oldest of the male descendants
-    Optional<Person> oldestMaleDescendant = maleDescendants.sort((a, b) -> a.dateOfBirth().compareTo(b.dateOfBirth()))
-        .get(0);
+    oldestDescendant = getOldestDescendant(descendants, MALE);
+
+    if (oldestDescendant.isPresent()) {
+      // there is a male descendant
+      descendant = oldestDescendant.get();
+    } else {
+      // there are no male descendants
+      // look for female descendants
+      oldestDescendant = getOldestDescendant(descendants, FEMALE);
+      descendant = oldestDescendant.get();
+    }
 
     // form the teknonymy
     String teknonymy = "";
 
-    int index = _maxGen;
     for (int i = _multiplier; i < _maxGen; i++) {
       teknonymy += _prefix;
       index--;
     }
 
-    // TODO: what if it's a female descendant?
-    teknonymy += _maleNames[index - 1] + " of " + oldestMaleDescendant.name();
+    teknonymy += (person.sex() == FEMALE ? _femaleNames[index - 1] : _maleNames[index - 1]) + " of "
+        + descendant.name();
+
+    System.out.println(teknonymy);
 
     return teknonymy;
   };
