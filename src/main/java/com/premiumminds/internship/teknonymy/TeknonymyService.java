@@ -6,17 +6,17 @@ import java.util.Queue;
 import java.util.ArrayList;
 import java.util.Optional;
 import java.util.Comparator;
+import java.util.Collections;
 
 class TeknonymyService implements ITeknonymyService {
 
   private static String[] _maleNames = { "father", "grandfather" };
   private static String[] _femaleNames = { "mother", "grandmother" };
 
-  private static Character MALE = 'M';
-  private static Character FEMALE = 'F';
+  private final Character MALE = 'M';
+  private final Character FEMALE = 'F';
 
-  private static String _prefix = "great-";
-  private static Integer _maxGen = -1;
+  private final String _prefix = "great-";
   private final Integer _multiplier = 2;
 
   private ArrayList<Person> descendants;
@@ -49,27 +49,31 @@ class TeknonymyService implements ITeknonymyService {
     // add the root to the queue
     _queue.add(person);
 
+    // initialize the generation counter
+    int _maxGen = 0;
+    ArrayList<Person> currentLevel = new ArrayList<>();
+
     while (!_queue.isEmpty()) {
+      int levelSize = _queue.size();
+      currentLevel.clear();
 
-      descendants = new ArrayList<Person>();
-
-      for (int i = 0; i < _queue.size(); i++) {
+      for (int i = 0; i < levelSize; i++) {
 
         Person currentPerson = _queue.poll();
         Person[] children = currentPerson.children();
 
-        descendants.add(currentPerson);
+        currentLevel.add(currentPerson);
 
-        if (children == null) {
-          continue;
-        }
-
-        for (Person child : children) {
-          _queue.add(child);
+        if (children != null) {
+          Collections.addAll(_queue, children);
         }
       }
+      descendants = new ArrayList<>(currentLevel);
+
       _maxGen++;
     }
+
+    _maxGen--;
 
     // filter the male descendants and get the oldest one
     Optional<Person> oldestDescendant = null;
@@ -90,6 +94,7 @@ class TeknonymyService implements ITeknonymyService {
     // form the teknonymy
     String teknonymy = "";
 
+    int index = _maxGen;
     for (int i = _multiplier; i < _maxGen; i++) {
       teknonymy += _prefix;
       index--;
@@ -97,8 +102,6 @@ class TeknonymyService implements ITeknonymyService {
 
     teknonymy += (person.sex() == FEMALE ? _femaleNames[index - 1] : _maleNames[index - 1]) + " of "
         + descendant.name();
-
-    System.out.println(teknonymy);
 
     return teknonymy;
   };
